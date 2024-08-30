@@ -171,7 +171,7 @@ async function loadVisibleChunks() {
             const key = `${x},${z}`;
             if (!loadedChunks.has(key)) {
                 console.log(`New chunk detected: ${key}`);  // Log added
-                queueChunk(x, z);
+                loadChunk(x, z);
             }
         }
     }
@@ -204,62 +204,69 @@ async function start() {
     }, loadTimeout);
 }
 
-// Load chunk data
-async function loadChunk(chunkX, chunkZ) {
-    try {
-        console.log(`Fetching chunk ${chunkX}, ${chunkZ}`);
-        const response = await fetch(`chunks/chunk.${chunkX}.${chunkZ}.dat`);
-        if (!response.ok) {
-            console.warn(`Failed to load chunk ${chunkX}, ${chunkZ}: ${response.statusText}`);
-            return;
-        }
-        const buffer = await response.arrayBuffer();
-        const dataView = new DataView(buffer);
+function getBlockColor(blockTypeCode)
+{
+    switch (blockTypeCode) {
+        case 1: return [0.5, 0.5, 0.5, 1.0]; // Gray for Stone
+        case 2: return [0.0, 1.0, 0.0, 1.0]; // Green for Grass
+        case 3: return [0.6, 0.3, 0.0, 1.0]; // Brown for Dirt
+        case 4: return [0.5, 0.5, 0.5, 1.0]; // Gray for Cobblestone
+        case 7: return [0.0, 0.0, 0.0, 1.0]; // Black for Water
+        case 8: return [0.0, 0.0, 1.0, 1.0]; // Blue for Water
+        case 9: return [0.0, 0.0, 1.0, 1.0]; // Blue for Water
+        case 10: return [1.0, 0.5, 0.0, 1.0]; // Orange for Lava
+        case 11: return [1.0, 0.5, 0.0, 1.0]; // Orange for Lava
+        case 12: return [1.0, 1.0, 0.0, 1.0]; // Yellow for Sand
+        case 13: return [0.8, 0.8, 0.8, 1.0]; // Light Grey for Water
+        case 18: return [0.0, 1.0, 0.0, 1.0]; // Green for Leaves
+        case 35: return [1.0, 1.0, 1.0, 1.0]; // White for Water
+        default: return [1.0, 0.0, 1.0, 1.0]; // Magenta for Unknown
+    }
+}
 
-        // Check chunk size
-        if (buffer.byteLength < chunkSize) {
-            console.warn(`Data size too small for chunk ${chunkX}, ${chunkZ}. Expected at least ${chunkSize}, got ${buffer.byteLength}`);
-            return;
-        }
+async function loadChunk(loadX, loadZ) {
+    console.log(`Fetching chunk ${loadX}, ${loadZ}`);
+    const response = await fetch(`chunks/chunk.${loadX}.${loadZ}.dat`);
+    if (!response.ok) {
+        console.warn(`Failed to load chunk ${loadX}, ${loadZ}: ${response.statusText}`);
+        return;
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const dataView = new DataView(arrayBuffer);
 
-        console.log(`Loaded chunk ${chunkX}, ${chunkZ}, size: ${buffer.byteLength}`);
-        
-        let offset = 0;
-        const startX = dataView.getInt32(offset, true);
-        offset += 4;
-        const startZ = dataView.getInt32(offset, true);
-        offset += 4;
+    let offset = 0;
+    const chunkX = dataView.getInt32(offset, true); offset += 4;
+    const chunkZ = dataView.getInt32(offset, true); offset += 4;
 
-        if (startX !== chunkX * chunkSize || startZ !== chunkZ * chunkSize) {
-            console.warn(`Chunk coordinates do not match: ${chunkX}, ${chunkZ}. Expected (${chunkX * chunkSize}, ${chunkZ * chunkSize}), got (${startX}, ${startZ})`);
-            return;
-        }
+    console.log(`Loaded chunk ${chunkX}, ${chunkZ}, size: ${arrayBuffer.byteLength}`);
 
-        // Parse chunk data
-        const newVertices = [];
-        const newColors = [];
+    const chunkSize = 16;
 
-        while (offset < buffer.byteLength) {
-            const height = dataView.getUint8(offset, true);
-            const blockTypeCode = dataView.getInt32(offset + 1, true);
-            offset += 5;
+//    if (loadX !== chunkX * chunkSize || loadZ !== chunkZ * chunkSize) {
+//        console.warn(`Chunk coordinates do not match: ${chunkX}, ${chunkZ}. Expected (${chunkX * chunkSize}, ${chunkZ * chunkSize}), got (${chu}, ${startZ})`);
+//        return;
+//    }
 
-            const x = (startX + (offset / chunkSize) % chunkSize) / canvas.width * 2 - 1;
+    // Parse chunk data
+    const newVertices = [];
+    const newColors = [];
+    
+    for (let x = 0; x < chunkSize; x++) {
+        for (let z = 0; z < chunkSize; z++) {
+            const height = dataView.getUint8(offset); offset += 1;
+            const blockType = dataView.getInt32(offset, true); offset += 4;
+            const x = (loadX + (offset / chunkSize) % chunkSize) / canvas.width * 2 - 1;
             const y = height / canvas.height * 2 - 1;
             newVertices.push(x, y);
-
-            // Set color based on block type (for demo purposes, use a single color)
-            newColors.push(1.0, 1.0, 1.0, 1.0);
+            newColors.push(getBlockColor(blockType));
         }
-
-        console.log(`Chunk ${chunkX}, ${chunkZ} loaded with ${newVertices.length / 2} vertices`);
-        vertices.push(...newVertices);
-        colors.push(...newColors);
-
-        drawMap();
-    } catch (error) {
-        console.error(`Failed to load chunk ${chunkX}, ${chunkZ}:`, error);
     }
+
+    console.log(`Chunk ${chunkX}, ${chunkZ} loaded with ${newVertices.length / 2} vertices`);
+    vertices.push(...newVertices);
+    colors.push(...newColors);
+
+    drawMap();
 }
 
 // Handle resizing and panning

@@ -22,8 +22,8 @@ self.onmessage = async function (event) {
         }
 
         const chunkData = [];
-        const chunkStartX = dataView.getInt32(0, true); // Little-endian
-        const chunkStartZ = dataView.getInt32(4, true); // Little-endian
+        const chunkStartX = dataView.getInt32(0, false); // Big-endian
+        const chunkStartZ = dataView.getInt32(4, false); // Big-endian
 
         console.log(`Chunk ${chunkX}, ${chunkZ} start position: ${chunkStartX}, ${chunkStartZ}`);
 
